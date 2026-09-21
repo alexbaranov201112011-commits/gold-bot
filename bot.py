@@ -1,84 +1,44 @@
-import os, pytz, datetime, requests
+import os, requests
 from flask import Flask, request
 
-TOKEN = os.environ.get("BOT_TOKEN")
+BOT_TOKEN = os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("TOKEN")
 app = Flask(__name__)
-tz = pytz.timezone('Asia/Atyrau')
 
 def send_msg(chat_id, text):
-    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    requests.post(url, json={"chat_id": chat_id, "text": text}, timeout=10)
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    requests.post(url, json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"})
 
-def get_candles():
-    url = "https://api.binance.com/api/v3/klines?symbol=PAXGUSDT&interval=1h&limit=100"
-    r = requests.get(url, timeout=10).json()
-    closes = [float(x[4]) for x in r]
-    highs = [float(x[2]) for x in r]
-    lows = [float(x[3]) for x in r]
-    return closes, highs, lows
-
-def calc_rsi(prices, period=14):
-    gains = losses = 0
-    for i in range(-period, 0):
-        diff = prices[i] - prices[i-1]
-        if diff > 0: gains += diff
-        else: losses -= diff
-    if losses == 0: return 70.0
-    rs = (gains/period) / (losses/period)
-    return 100 - (100 / (1 + rs))
-
-def calc_ema(prices, period):
-    return sum(prices[-period:]) / period
-
-@app.route('/')
+@app.route("/")
 def home():
     return "GOLD v6.2 FIXED DIRECT"
 
-@app.route('/webhook', methods=['POST'])
+@app.route("/webhook", methods=["POST"])
 def webhook():
-    try:
-        data = request.get_json(force=True)
-        msg = data.get("message", {})
-        chat_id = msg.get("chat", {}).get("id")
-        text_in = msg.get("text", "") or ""
-        if not chat_id: return 'ok'
-        if "gold" not in text_in.lower(): return 'ok'
+    data = request.get_json()
+    if not data or "message" not in data:
+        return "ok", 200
+    
+    chat_id = data["message"]["chat"]["id"]
+    text = data["message"].get("text", "")
+    
+    print(f"Got message: {text} from {chat_id}")
+    
+    if text.startswith("/start"):
+        send_msg(chat_id, "Бот проснулся ✅ Напиши /gold")
+    elif "/gold" in text:
+        send_msg(chat_id, "🔍 Анализирую GOLD... Подожди 15 сек...")
+        # тут твой анализ золота, пока заглушка
+        try:
+            # ЗАМЕНИ ЭТО НА СВОЙ АНАЛИЗ
+            result = "📈 GOLD: Ожидаю лонг\nSL: 2580\nTP: 2610\n\n(это заглушка, вставь свою логику)"
+            send_msg(chat_id, result)
+        except Exception as e:
+            print(f"Error: {e}")
+            send_msg(chat_id, f"Ошибка: {e}")
+    else:
+        send_msg(chat_id, "Напиши /gold для сигнала")
+    
+    return "ok", 200
 
-        now = datetime.datetime.now(tz)
-        closes, highs, lows = get_candles()
-        price = closes[-1]
-        rsi = calc_rsi(closes)
-        ema50 = calc_ema(closes, 50)
-        support = min(lows[-20:])
-        resistance = max(highs[-20:])
-
-        if price > ema50 and rsi < 68:
-            trend = f"LONG выше EMA50 {ema50:.1f}"
-            action = "BUY"
-            entry = f"{price-8:.1f} - {price:.1f}"
-            sl = f"{support:.1f}"
-            tp1 = f"{price+15:.1f}"
-            tp2 = f"{resistance:.1f}"
-        elif price < ema50 and rsi > 32:
-            trend = f"SHORT ниже EMA50 {ema50:.1f}"
-            action = "SELL"
-            entry = f"{price:.1f} - {price+8:.1f}"
-            sl = f"{resistance:.1f}"
-            tp1 = f"{price-15:.1f}"
-            tp2 = f"{support:.1f}"
-        else:
-            trend = "Флэт / Перекуп" if rsi>70 else "Флэт"
-            action = "ЖДЕМ"
-            entry = "Вне рынка"
-            sl = "-"
-            tp1 = "-"
-            tp2 = "-"
-
-        text = f"GOLD АНАЛИЗ v6.2\n{now.strftime('%d.%m %H:%M')} Атырау\nЦена: ${price:.2f}\n\nRSI: {rsi:.1f}\nEMA50: ${ema50:.1f}\nПоддержка: ${support:.1f} | Сопр: ${resistance:.1f}\nТренд: {trend}\n\n{action}\nВход: {entry}\nSL: {sl}\nTP1: {tp1}\nTP2: {tp2}\n\n/gold - обновить"
-        send_msg(chat_id, text)
-    except Exception as e:
-        print("ERR:", e)
-    return 'ok'
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
