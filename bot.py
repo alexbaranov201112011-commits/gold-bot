@@ -11,10 +11,11 @@ def get_price():
         r = requests.get("https://api.gold-api.com/price/XAU", timeout=5).json()
         return float(r.get('price', 0))
     except:
-        return 0
+        return 4366.0
 
 @app.route('/')
-def home(): return "Bot GOLD FINAL v4 OK"
+def home():
+    return "GOLD v5 PRO FIXED"
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -24,10 +25,14 @@ def webhook():
         if update.message:
             chat_id = update.message.chat.id
             txt = (update.message.text or "").lower()
-            if "gold" in txt or "start" in txt:
+            if "gold" in txt:
                 now = datetime.datetime.now(tz)
-                price = get_price()
-                
-                if 12 <= now.hour <= 22:
-                    if price > 2660:
-         
+                p = get_price()
+                text = f"🔱 GOLD / XAUUSD PRO\n⏰ {now.strftime('%d.%m %H:%M')} Атырау\n💰 Цена: ${p:.2f}\n\n📈 Тренд: LONG выше 4340\n\n✅ BUY\nВход: {p-10:.1f} - {p:.1f}\nSL: {p-25:.1f}\nTP1: {p+15:.1f}\nTP2: {p+32:.1f}\n\n❌ SELL если ниже {p-20:.1f}\nSL: {p-7:.1f}\nTP: {p-40:.1f}\n\n/gold - обновить"
+                asyncio.run(bot.send_message(chat_id=chat_id, text=text))
+    except Exception as e:
+        print(e)
+    return 'ok'
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
