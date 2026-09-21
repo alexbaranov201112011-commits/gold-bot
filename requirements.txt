@@ -1,4 +1,3 @@
-python-telegram-bot
 Flask
-pytz
 requests
+pytz
