@@ -1,4 +1,5 @@
+Flask
 pyTelegramBotAPI
-matplotlib
-flask
 yfinance
+matplotlib
+pandas
