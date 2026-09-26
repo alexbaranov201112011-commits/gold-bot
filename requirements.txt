@@ -1,7 +1,5 @@
 pyTelegramBotAPI
+Flask
 yfinance
 pandas
-mplfinance
 pytz
-Flask
-requests
