@@ -1,7 +1,7 @@
-Flask
-python-telegram-bot==20.7
+pyTelegramBotAPI
 yfinance
 pandas
+mplfinance
+pytz
+Flask
 requests
-httpx==0.25.2
-matplotlib
