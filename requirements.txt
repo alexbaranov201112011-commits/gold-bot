@@ -3,3 +3,5 @@ Flask
 yfinance
 pandas
 pytz
+matplotlib
+numpy
