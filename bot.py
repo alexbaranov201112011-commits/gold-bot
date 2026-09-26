@@ -1,7 +1,4 @@
-flask import Flask
-from datetime import datetime
-import pytz
-import pandas as pd
+ as pd
 import mplfinance as mpf
 
 TOKEN = os.getenv("BOT_TOKEN")
