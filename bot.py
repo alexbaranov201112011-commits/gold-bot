@@ -1,5 +1,4 @@
-import telebot, yfinance as yf, io, os, threading
-from flask import Flask
+flask import Flask
 from datetime import datetime
 import pytz
 import pandas as pd
