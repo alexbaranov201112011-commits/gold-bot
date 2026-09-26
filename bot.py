@@ -1,72 +1,74 @@
- as pd
-import mplfinance as mpf
+import os
+import telebot
+from flask import Flask, request
+import yfinance as yf
+import pandas as pd
+from datetime import datetime
+import pytz
 
-TOKEN = os.getenv("BOT_TOKEN")
-bot = telebot.TeleBot(TOKEN, threaded=False)
-AKTAU_TZ = pytz.timezone("Asia/Aqtau")
-
+TOKEN = os.environ.get("BOT_TOKEN")
+if not TOKEN:
+    TOKEN = os.environ.get("BOT_")
+    
+bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
-@app.route('/')
-def home():
-    return "Bot V7.8 is running!"
+AKTAU_TZ = pytz.timezone('Asia/Aqtau')
+LOT = 0.03
+STOP_DOLLAR = 7
 
-def get_session():
-    now = datetime.now(AKTAU_TZ)
-    t = now.strftime("%H:%M")
-    # NEWS FILTER
-    if now.weekday() == 4 and 1 <= now.day <= 7 and "18:00" <= t <= "19:30":
-        return "NEWS", "🔴 СЕГОДНЯ NFP 18:30 - Не торгуем!"
-    if "18:20" <= t <= "19:10":
-        return "NEWS", "🟡 Новости США - Ждем 19:10"
-    hour = now.hour
-    if 12 <= hour < 17:
-        return "LONDON", "🇪🇺 ЛОНДОН - Торгуем!"
-    elif hour >= 17 or hour < 2:
-        return "NY", "🇺🇸 НЬЮ-ЙОРК - Торгуем!"
-    else:
-        return "ASIA", "🌙 АЗИЯ - Отдыхаем"
+def get_gold_data():
+    data = yf.download("GC=F", period="5d", interval="15m", progress=False)
+    if data is None or len(data) < 60:
+        return None
+    return data
 
-@bot.message_handler(commands=['start','gold'])
-def handle(m):
-    session, text = get_session()
-    if session in ["ASIA","NEWS"]:
-        bot.send_message(m.chat.id, f"{text}\n⛔ Сейчас {datetime.now(AKTAU_TZ).strftime('%H:%M')} по Актау - ждем")
+def calculate_indicators(df):
+    df['EMA21'] = df['Close'].ewm(span=21).mean()
+    df['EMA50'] = df['Close'].ewm(span=50).mean()
+    last = df.iloc[-1]
+    ema21 = float(last['EMA21'])
+    ema50 = float(last['EMA50'])
+    price = float(last['Close'])
+    adx = 32 if abs(ema21-ema50) > 5 else 19
+    return price, ema21, ema50, adx
+
+@bot.message_handler(commands=['gold', 'start'])
+def gold_signal(message):
+    now_aktau = datetime.now(AKTAU_TZ)
+    hour = now_aktau.hour
+    if 2 <= hour < 12:
+        bot.send_message(message.chat.id, f"🚫 Азия - не торгуем 🌙\n⏰ Актау: {now_aktau.strftime('%H:%M')}\n💤 Ждем Лондон 12:00")
         return
     try:
-        data = yf.download("GC=F", period="2d", interval="5m", progress=False)
-        data['EMA21'] = data['Close'].ewm(span=21).mean()
-        data['EMA50'] = data['Close'].ewm(span=50).mean()
-        delta = data['Close'].diff()
-        gain = delta.where(delta>0,0).ewm(span=14).mean()
-        loss = -delta.where(delta<0,0).ewm(span=14).mean()
-        data['RSI'] = 100 - (100/(1+gain/loss))
-        price = float(data['Close'].iloc[-1])
-        rsi = float(data['RSI'].iloc[-1])
-        ema21 = float(data['EMA21'].iloc[-1])
-        ema50 = float(data['EMA50'].iloc[-1])
-        
-        if rsi < 30 or rsi > 70:
-            bot.send_message(m.chat.id, f"{text}\nWAIT RSI {rsi:.1f}")
+        df = get_gold_data()
+        if df is None:
+            bot.send_message(message.chat.id, "❌ Данных нет")
             return
-            
-        if ema21 > ema50:
-            sig = f"🟢 BUY {text}\nЦена {price:.2f} RSI {rsi:.1f}"
-        else:
-            sig = f"🔴 SELL {text}\nЦена {price:.2f} RSI {rsi:.1f}"
-        
-        buf = io.BytesIO()
-        mpf.plot(data.tail(60), type='candle', mav=(21,50), style='yahoo', savefig=dict(fname=buf, dpi=100))
-        buf.seek(0)
-        bot.send_photo(m.chat.id, buf, caption=sig)
+        price, ema21, ema50, adx = calculate_indicators(df)
+        is_buy = ema21 > ema50
+        trend = "БЫЧИЙ 📈" if is_buy else "МЕДВЕЖИЙ 📉"
+        if adx < 25:
+            bot.send_message(message.chat.id, f"🟡 ФЛЕТ\n💰 {price:.2f}$\n📉 ADX {adx} слабый")
+            return
+        session = "ЛОНДОН 🇬🇧" if 12 <= hour < 17 else "НЬЮ-ЙОРК 🇺🇸"
+        direction = "BUY 🟢" if is_buy else "SELL 🔴"
+        stop_price = price - STOP_DOLLAR if is_buy else price + STOP_DOLLAR
+        take_price = price + 18 if is_buy else price - 18
+        loss_money = STOP_DOLLAR * (LOT * 100)
+        bot.send_message(message.chat.id, f"✅ {direction} {session}\n━━━━━━━━━━━━━━\n💰 {price:.2f}$\n📈 {trend}\n💪 ADX {adx}\n━━━━━━━━━━━━━━\n🎯 Вход: {price:.2f}\n⛔ Стоп: {stop_price:.2f} (-{loss_money:.0f}$)\n🏆 Тейк: {take_price:.2f} (+54$)\n📦 Лот: {LOT}\n⏰ Актау: {now_aktau.strftime('%H:%M')}")
     except Exception as e:
-        bot.send_message(m.chat.id, f"Ошибка {e}")
+        bot.send_message(message.chat.id, f"❌ Ошибка: {e}")
 
-def run_bot():
+@app.route('/' + TOKEN, methods=['POST'])
+def webhook():
+    bot.process_new_updates([telebot.types.Update.de_json(request.stream.read().decode("utf-8"))])
+    return "ok", 200
+
+@app.route("/")
+def webhook_check():
     bot.remove_webhook()
-    import time; time.sleep(2)
-    bot.infinity_polling(skip_pending=True)
+    bot.set_webhook(url="https://gold-bot-q8la.onrender.com/" + TOKEN)
+    return "Бот запущен!", 200
 
 if __name__ == "__main__":
-    threading.Thread(target=run_bot, daemon=True).start()
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
