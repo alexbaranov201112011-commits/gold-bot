@@ -4,3 +4,4 @@ yfinance
 pandas
 requests
 httpx==0.25.2
+matplotlib
