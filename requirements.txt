@@ -1,5 +1,5 @@
 Flask
-pyTelegramBotAPI
+python-telegram-bot==20.7
 yfinance
-matplotlib
 pandas
+requests
