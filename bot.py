@@ -16,12 +16,24 @@ STOP_DOLLAR = 7
 TAKE_DOLLAR = 18
 
 def get_gold_data():
-    df = yf.download("GC=F", period="10d", interval="15m", progress=False, auto_adjust=True)
-    if df is None or len(df) < 60:
-        return None
-    if isinstance(df.columns, pd.MultiIndex):
-        df.columns = df.columns.get_level_values(0)
-    return df
+    # ПРОБУЕМ СПОТ ЦЕНУ КАК У БРОКЕРА
+    tickers = ["XAUUSD=X", "XAU/USD", "GC=F"]  # сначала спот, потом фьючерс как запасной
+    for ticker in tickers:
+        try:
+            df = yf.download(ticker, period="10d", interval="15m", progress=False, auto_adjust=True)
+            if df is None or len(df) < 60:
+                continue
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = df.columns.get_level_values(0)
+            # Проверка что цена похожа на брокера (4200-4400)
+            last_price = float(df['Close'].iloc[-1])
+            if 4000 < last_price < 4500:
+                print(f"Используем тикер {ticker}: {last_price}")
+                return df
+        except Exception as e:
+            print(f"Ошибка тикера {ticker}: {e}")
+            continue
+    return None
 
 def calc_rsi(series, period=14):
     delta = series.diff()
@@ -56,75 +68,4 @@ def make_chart(df, price, ema21, ema50, is_buy):
     plt.axhline(sl, color='red', linestyle='--', linewidth=1, label=f'SL {sl:.1f}')
     plt.axhline(tp, color='green', linestyle='--', linewidth=1, label=f'TP {tp:.1f}')
     plt.legend(fontsize=8)
-    plt.title(f"GOLD XAU - {'BUY' if is_buy else 'SELL'} | EMA21 {ema21:.1f} > EMA50 {ema50:.1f}" if is_buy else f"GOLD XAU - SELL | EMA21 {ema21:.1f} < EMA50 {ema50:.1f}")
-    plt.grid(alpha=0.3)
-    plt.tight_layout()
-    path = "/tmp/gold.png"
-    plt.savefig(path, dpi=150)
-    plt.close()
-    return path, sl, tp
-
-@bot.message_handler(commands=['gold','start'])
-def gold_signal(message):
-    now = datetime.now(AKTAU_TZ)
-    hour = now.hour
-    # 1. Азия блок
-    if 2 <= hour < 12:
-        df = get_gold_data()
-        if df is not None:
-            df['RSI'] = calc_rsi(df['Close'])
-            rsi = float(df['RSI'].iloc[-1])
-            price = float(df['Close'].iloc[-1])
-            bot.send_message(message.chat.id, f"🌙 СЕССИЯ: ASIA 🌙\n🕐 Время Актау: {hour}:00\n📍 Азиатская сессия - флэт\n\n⛔ WAIT - ЖДЕМ ⏸️\n\n📍 Причина: {'Перепроданность' if rsi<30 else 'Флэт Азии' } RSI {rsi:.1f}\n💰 Цена: {price:.2f}$ | 📊 RSI: {rsi:.1f}\n\n⚠️ Сейчас ASIA 🌙 - торговать опасно!\n✅ Торгуем только:\n🇪🇺 Лондон 12:00-17:00\n🇺🇸 Нью-Йорк 17:00-02:00 по Актау\n\n⏰ Приходи в Лондон!")
-            return
-        else:
-            bot.send_message(message.chat.id, f"🌙 ASIA {hour}:00 - не торгуем, ждем Лондон 12:00")
-            return
-    try:
-        df = get_gold_data()
-        if df is None:
-            bot.send_message(message.chat.id, "❌ Данных нет")
-            return
-        df['EMA21'] = df['Close'].ewm(span=21).mean()
-        df['EMA50'] = df['Close'].ewm(span=50).mean()
-        df['RSI'] = calc_rsi(df['Close'])
-        df['ADX'] = calc_adx(df)
-        last = df.iloc[-1]
-        price = float(last['Close']); ema21=float(last['EMA21']); ema50=float(last['EMA50'])
-        rsi=float(last['RSI']); adx=float(last['ADX'])
-        is_buy = ema21 > ema50
-        
-        # 2. RSI фильтр
-        if rsi < 25 or rsi > 75:
-            bot.send_message(message.chat.id, f"⛔ WAIT - RSI экстремум\n💰 {price:.2f}$ | RSI {rsi:.1f}\n⚠️ Перепроданность" if rsi<30 else f"⛔ WAIT - RSI экстремум\n💰 {price:.2f}$ | RSI {rsi:.1f}\n⚠️ Перекупленность")
-            return
-        # 3. ADX фильтр
-        if adx < 22:
-            bot.send_message(message.chat.id, f"🟡 ФЛЕТ\n💰 {price:.2f}$\n📉 ADX {adx:.1f} слабый тренд\n⏰ Актау {now.strftime('%H:%M')}")
-            return
-            
-        session = "ЛОНДОН 🇬🇧" if 12 <= hour < 17 else "НЬЮ-ЙОРК 🇺🇸"
-        direction = "BUY 🟢📈" if is_buy else "SELL 🔴📉"
-        chart_path, sl, tp = make_chart(df, price, ema21, ema50, is_buy)
-        
-        text = f"✅ {direction} {session}\n━━━━━━━━━━━━━━\n💰 Цена: {price:.2f}$\n📈 EMA21 {ema21:.2f} | EMA50 {ema50:.2f}\n📊 RSI {rsi:.1f} | 💪 ADX {adx:.1f}\n━━━━━━━━━━━━━━\n🎯 Вход: {price:.2f}\n⛔ Стоп: {sl:.2f} (-{STOP_DOLLAR*LOT*100:.0f}$)\n🏆 Тейк: {tp:.2f} (+{TAKE_DOLLAR*LOT*100:.0f}$)\n📦 Лот: {LOT}\n⏰ Актау: {now.strftime('%H:%M')} ⏰"
-        
-        with open(chart_path, 'rb') as ph:
-            bot.send_photo(message.chat.id, ph, caption=text)
-            
-    except Exception as e:
-        bot.send_message(message.chat.id, f"❌ Ошибка: {e}")
-
-@app.route('/' + TOKEN, methods=['POST'])
-def webhook():
-    bot.process_new_updates([telebot.types.Update.de_json(request.stream.read().decode("utf-8"))])
-    return "ok", 200
-
-@app.route("/")
-def webhook_check():
-    bot.remove_webhook()
-    bot.set_webhook(url="https://gold-bot-q8la.onrender.com/" + TOKEN)
-    return "Бот запущен! 📈🌙", 200
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT",10000)))
+   
