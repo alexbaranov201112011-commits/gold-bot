@@ -5,3 +5,4 @@ pandas
 pytz
 matplotlib
 numpy
+gunicorn
