@@ -1,8 +1,7 @@
 pyTelegramBotAPI
 Flask
-yfinance
+requests
 pandas
-pytz
-matplotlib
 numpy
+yfinance
 gunicorn
