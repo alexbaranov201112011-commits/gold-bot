@@ -2,3 +2,6 @@ Flask
 pyTelegramBotAPI
 gunicorn
 requests
+pandas
+numpy
+yfinance
