@@ -8,9 +8,9 @@ import numpy as np
 from flask import Flask, request
 
 # =========================================================
-# GOLD SMART V4.3
+# GOLD SMART V4.4 BALANCED SMC
 # Telegram Webhook + Twelve Data
-# STRICT SMC CONFIRMATION
+# BALANCED SMC CONFIRMATION
 # MANUAL SIGNALS ONLY — NO AUTO TRADING
 # =========================================================
 
@@ -26,15 +26,35 @@ app = Flask(__name__)
 
 
 # =========================================================
+# SETTINGS
+# =========================================================
+
+MIN_SCORE = 8
+
+# BOS обязательно
+REQUIRE_BOS = True
+
+# После BOS достаточно одного:
+# Liquidity Sweep ИЛИ FVG
+REQUIRE_LIQUIDITY_OR_FVG = True
+
+# Не разрешаем вход при сильной перекупленности/перепроданности
+BUY_RSI_MAX = 70
+SELL_RSI_MIN = 30
+
+
+# =========================================================
 # TELEGRAM
 # =========================================================
 
 def telegram_send(chat_id, text):
 
     if not BOT_TOKEN:
+        print("BOT_TOKEN missing")
         return
 
     try:
+
         requests.post(
             f"{TELEGRAM_API}/sendMessage",
             json={
@@ -125,7 +145,13 @@ def get_candles(interval, outputsize=250):
 
         df = pd.DataFrame(data["values"])
 
-        for col in ["open", "high", "low", "close"]:
+        for col in [
+            "open",
+            "high",
+            "low",
+            "close"
+        ]:
+
             df[col] = pd.to_numeric(
                 df[col],
                 errors="coerce"
@@ -162,11 +188,6 @@ def get_candles(interval, outputsize=250):
 
 def closed_candles(df):
 
-    """
-    Используем последнюю полностью закрытую свечу.
-    Последняя свеча Twelve Data может быть ещё формирующейся.
-    """
-
     if df is None or len(df) < 5:
         return df
 
@@ -181,6 +202,7 @@ def add_indicators(df):
 
     df = df.copy()
 
+    # EMA
     df["ema50"] = df["close"].ewm(
         span=50,
         adjust=False
@@ -191,6 +213,7 @@ def add_indicators(df):
         adjust=False
     ).mean()
 
+    # RSI
     delta = df["close"].diff()
 
     gain = delta.clip(lower=0)
@@ -208,14 +231,20 @@ def add_indicators(df):
         100 / (1 + rs)
     )
 
-    high_low = df["high"] - df["low"]
+    # ATR
+    high_low = (
+        df["high"] -
+        df["low"]
+    )
 
     high_close = abs(
-        df["high"] - df["close"].shift()
+        df["high"] -
+        df["close"].shift()
     )
 
     low_close = abs(
-        df["low"] - df["close"].shift()
+        df["low"] -
+        df["close"].shift()
     )
 
     tr = pd.concat(
@@ -247,12 +276,14 @@ def get_trend(df):
         last["close"] > last["ema50"]
         and last["ema50"] > last["ema200"]
     ):
+
         return "BULLISH"
 
     if (
         last["close"] < last["ema50"]
         and last["ema50"] < last["ema200"]
     ):
+
         return "BEARISH"
 
     return "MIXED"
@@ -293,6 +324,7 @@ def get_structure(df, lookback=5):
         len(swing_highs) < 2
         or len(swing_lows) < 2
     ):
+
         return "MIXED"
 
     h1 = swing_highs.iloc[-2]
@@ -329,22 +361,20 @@ def detect_liquidity(df):
         "low"
     ].iloc[-8:-1].min()
 
-    # BSL sweep:
-    # price takes buy-side liquidity above highs
-    # and closes back below it
+    # BSL sweep -> bearish
     if (
         last["high"] > recent_high
         and last["close"] < recent_high
     ):
+
         return "BSL SWEEP"
 
-    # SSL sweep:
-    # price takes sell-side liquidity below lows
-    # and closes back above it
+    # SSL sweep -> bullish
     if (
         last["low"] < recent_low
         and last["close"] > recent_low
     ):
+
         return "SSL SWEEP"
 
     return "NONE"
@@ -384,7 +414,6 @@ def detect_structure_break(df):
 
     last = df.iloc[-1]
 
-    # Previous structure excludes the current candle
     previous_high = df[
         "high"
     ].iloc[-12:-1].max()
@@ -393,11 +422,11 @@ def detect_structure_break(df):
         "low"
     ].iloc[-12:-1].min()
 
-    # Bullish break
+    # Bullish BOS
     if last["close"] > previous_high:
         return "BULLISH BOS"
 
-    # Bearish break
+    # Bearish BOS
     if last["close"] < previous_low:
         return "BEARISH BOS"
 
@@ -426,7 +455,7 @@ def get_momentum(df):
 
 
 # =========================================================
-# SIGNAL ENGINE V4.3
+# SIGNAL ENGINE V4.4
 # =========================================================
 
 def analyze():
@@ -440,17 +469,9 @@ def analyze():
             "reason": "Не удалось получить текущую цену XAU/USD."
         }
 
-    h4 = get_candles(
-        "4h"
-    )
-
-    h1 = get_candles(
-        "1h"
-    )
-
-    m15 = get_candles(
-        "15min"
-    )
+    h4 = get_candles("4h")
+    h1 = get_candles("1h")
+    m15 = get_candles("15min")
 
     if (
         h4 is None
@@ -464,7 +485,7 @@ def analyze():
         }
 
     # -----------------------------------------------------
-    # USE CLOSED CANDLES
+    # CLOSED CANDLES
     # -----------------------------------------------------
 
     h4 = closed_candles(h4)
@@ -510,11 +531,8 @@ def analyze():
     # -----------------------------------------------------
 
     liquidity = detect_liquidity(m15)
-
     fvg = detect_fvg(m15)
-
     bos = detect_structure_break(m15)
-
     momentum = get_momentum(m15)
 
     # -----------------------------------------------------
@@ -540,66 +558,48 @@ def analyze():
         }
 
     # =====================================================
-    # SCORES
+    # BASE SCORE
     # =====================================================
 
     buy_score = 0
     sell_score = 0
 
-    # -----------------------------------------------------
     # H4
-    # -----------------------------------------------------
-
     if h4_trend == "BULLISH":
         buy_score += 2
 
     elif h4_trend == "BEARISH":
         sell_score += 2
 
-    # -----------------------------------------------------
     # H1
-    # -----------------------------------------------------
-
     if h1_trend == "BULLISH":
         buy_score += 2
 
     elif h1_trend == "BEARISH":
         sell_score += 2
 
-    # -----------------------------------------------------
     # M15
-    # -----------------------------------------------------
-
     if m15_trend == "BULLISH":
         buy_score += 2
 
     elif m15_trend == "BEARISH":
         sell_score += 2
 
-    # -----------------------------------------------------
-    # H1 STRUCTURE
-    # -----------------------------------------------------
-
+    # H1 structure
     if h1_structure == "HH/HL":
         buy_score += 1
 
     elif h1_structure == "LH/LL":
         sell_score += 1
 
-    # -----------------------------------------------------
-    # M15 STRUCTURE
-    # -----------------------------------------------------
-
+    # M15 structure
     if m15_structure == "HH/HL":
         buy_score += 1
 
     elif m15_structure == "LH/LL":
         sell_score += 1
 
-    # -----------------------------------------------------
-    # MOMENTUM
-    # -----------------------------------------------------
-
+    # Momentum
     if momentum == "BULLISH":
         buy_score += 1
 
@@ -638,153 +638,186 @@ def analyze():
     sell_score += smc_sell
 
     # =====================================================
-    # RSI FILTER
+    # DIRECTIONAL BIAS
     # =====================================================
 
-    buy_extended = rsi >= 68
-    sell_extended = rsi <= 32
-
-    # =====================================================
-    # STRICT TREND ALIGNMENT
-    # =====================================================
-
-    trend_buy = (
+    # BUY:
+    # H4 + H1 должны быть bullish.
+    # M15 может быть bullish либо mixed,
+    # если структура/импульс подтверждают.
+    buy_bias = (
         h4_trend == "BULLISH"
         and h1_trend == "BULLISH"
-        and m15_trend == "BULLISH"
+        and (
+            m15_trend == "BULLISH"
+            or m15_structure == "HH/HL"
+            or momentum == "BULLISH"
+        )
     )
 
-    trend_sell = (
+    # SELL:
+    # H4 + H1 должны быть bearish.
+    # M15 может быть bearish либо mixed,
+    # если структура/импульс подтверждают.
+    sell_bias = (
         h4_trend == "BEARISH"
         and h1_trend == "BEARISH"
-        and m15_trend == "BEARISH"
+        and (
+            m15_trend == "BEARISH"
+            or m15_structure == "LH/LL"
+            or momentum == "BEARISH"
+        )
     )
 
     # =====================================================
-    # STRICT SMC CONFIRMATION
+    # BOS CONFIRMATION
     # =====================================================
 
-    buy_bos_confirmed = (
+    buy_bos = (
         bos == "BULLISH BOS"
     )
 
-    sell_bos_confirmed = (
+    sell_bos = (
         bos == "BEARISH BOS"
     )
 
-    buy_liquidity_confirmed = (
+    # =====================================================
+    # LIQUIDITY OR FVG
+    # =====================================================
+
+    buy_zone = (
         liquidity == "SSL SWEEP"
+        or fvg == "BULLISH FVG"
     )
 
-    sell_liquidity_confirmed = (
+    sell_zone = (
         liquidity == "BSL SWEEP"
+        or fvg == "BEARISH FVG"
     )
 
-    buy_fvg_confirmed = (
-        fvg == "BULLISH FVG"
+    # =====================================================
+    # RSI
+    # =====================================================
+
+    buy_rsi_ok = (
+        rsi < BUY_RSI_MAX
     )
 
-    sell_fvg_confirmed = (
-        fvg == "BEARISH FVG"
+    sell_rsi_ok = (
+        rsi > SELL_RSI_MIN
     )
 
     # =====================================================
     # FINAL CONFIRMATION
     # =====================================================
 
-    buy_smc_confirmed = (
-        buy_bos_confirmed
-        and (
-            buy_liquidity_confirmed
-            or buy_fvg_confirmed
-        )
+    buy_confirmed = (
+        buy_bias
+        and buy_bos
+        and buy_zone
+        and buy_score >= MIN_SCORE
+        and buy_rsi_ok
     )
 
-    sell_smc_confirmed = (
-        sell_bos_confirmed
-        and (
-            sell_liquidity_confirmed
-            or sell_fvg_confirmed
-        )
+    sell_confirmed = (
+        sell_bias
+        and sell_bos
+        and sell_zone
+        and sell_score >= MIN_SCORE
+        and sell_rsi_ok
     )
+
+    # =====================================================
+    # CONFLICT PROTECTION
+    # =====================================================
 
     signal = "WAIT"
     reason = ""
 
-    # =====================================================
-    # BUY
-    # =====================================================
-
-    if (
-        trend_buy
-        and buy_smc_confirmed
-        and buy_score >= 10
-        and not buy_extended
-    ):
+    if buy_confirmed and not sell_confirmed:
 
         signal = "BUY"
 
-    # =====================================================
-    # SELL
-    # =====================================================
-
-    elif (
-        trend_sell
-        and sell_smc_confirmed
-        and sell_score >= 10
-        and not sell_extended
-    ):
+    elif sell_confirmed and not buy_confirmed:
 
         signal = "SELL"
 
-    # =====================================================
-    # WAIT REASONS
-    # =====================================================
+    elif buy_confirmed and sell_confirmed:
+
+        signal = "WAIT"
+
+        reason = (
+            "конфликт BUY/SELL подтверждений"
+        )
 
     else:
 
         reasons = []
 
-        if not trend_buy and not trend_sell:
+        if not buy_bias and not sell_bias:
+
             reasons.append(
-                "нет полного согласования H4/H1/M15"
+                "нет направленного H4/H1 bias"
+            )
+
+        if not buy_bos and not sell_bos:
+
+            reasons.append(
+                "нет BOS подтверждения"
             )
 
         if (
-            not buy_bos_confirmed
-            and not sell_bos_confirmed
+            not buy_zone
+            and not sell_zone
         ):
+
             reasons.append(
-                "нет BOS/CHoCH подтверждения"
+                "нет направленного Liquidity Sweep/FVG"
             )
 
         if (
-            not buy_liquidity_confirmed
-            and not sell_liquidity_confirmed
+            buy_score < MIN_SCORE
+            and sell_score < MIN_SCORE
         ):
+
             reasons.append(
-                "нет направленного Liquidity Sweep"
+                f"score ниже {MIN_SCORE}"
             )
 
         if (
-            not buy_fvg_confirmed
-            and not sell_fvg_confirmed
+            sell_score >= MIN_SCORE
+            and sell_bias
+            and not sell_bos
         ):
+
             reasons.append(
-                "нет направленного FVG"
+                "SELL score высокий, но нет Bearish BOS"
             )
 
-        if sell_extended:
+        if (
+            buy_score >= MIN_SCORE
+            and buy_bias
+            and not buy_bos
+        ):
+
             reasons.append(
-                "SELL растянут по RSI"
+                "BUY score высокий, но нет Bullish BOS"
             )
 
-        if buy_extended:
+        if rsi <= SELL_RSI_MIN:
+
             reasons.append(
-                "BUY растянут по RSI"
+                "RSI слишком низкий для SELL"
+            )
+
+        if rsi >= BUY_RSI_MAX:
+
+            reasons.append(
+                "RSI слишком высокий для BUY"
             )
 
         if not reasons:
+
             reasons.append(
                 "условия входа ещё не подтверждены"
             )
@@ -885,7 +918,7 @@ def format_signal(a):
     if a["signal"] == "NO TRADE":
 
         return (
-            "🥇 GOLD SMART V4.3\n\n"
+            "🥇 GOLD SMART V4.4\n\n"
             "⛔ NO TRADE\n\n"
             f"Причина: {a['reason']}\n\n"
             "⚠️ Автоторговля отключена."
@@ -894,20 +927,18 @@ def format_signal(a):
     signal = a["signal"]
 
     if signal == "BUY":
-
         signal_text = "🟢 SIGNAL: BUY"
 
     elif signal == "SELL":
-
         signal_text = "🔴 SIGNAL: SELL"
 
     else:
-
         signal_text = "⚪ SIGNAL: WAIT"
 
     text = (
 
-        "🥇 GOLD SMART V4.3\n\n"
+        "🥇 GOLD SMART V4.4\n"
+        "🧠 BALANCED SMC\n\n"
 
         f"💰 Цена: {a['price']:.2f}\n\n"
 
@@ -951,7 +982,10 @@ def format_signal(a):
         f"{signal_text}\n"
     )
 
-    if signal in ["BUY", "SELL"]:
+    if signal in [
+        "BUY",
+        "SELL"
+    ]:
 
         text += (
 
@@ -987,7 +1021,7 @@ def format_signal(a):
 
         "\n"
 
-        "🧠 MODE: STRICT SMC\n"
+        "🧠 MODE: BALANCED SMC\n"
         "🛡 Режим: MANUAL\n"
         "🚫 Автоторговля отключена.\n"
 
@@ -1034,14 +1068,14 @@ def process_message(message):
 
             chat_id,
 
-            "🥇 GOLD SMART V4.3\n\n"
+            "🥇 GOLD SMART V4.4\n\n"
 
             "Бот запущен.\n\n"
 
             "Команда:\n"
             "🟡 /gold — анализ XAU/USD\n\n"
 
-            "Режим: STRICT SMC.\n"
+            "Режим: BALANCED SMC.\n"
             "Автоторговля отключена."
         )
 
@@ -1058,8 +1092,10 @@ def process_message(message):
     ]:
 
         telegram_send(
+
             chat_id,
-            "⏳ GOLD SMART V4.3\n"
+
+            "⏳ GOLD SMART V4.4\n"
             "Анализ XAU/USD..."
         )
 
@@ -1116,7 +1152,7 @@ def process_message(message):
 )
 def home():
 
-    return "Gold Smart V4.3 is running."
+    return "Gold Smart V4.4 is running."
 
 
 @app.route(
