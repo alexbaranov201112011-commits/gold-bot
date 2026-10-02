@@ -1676,4 +1676,4 @@ def engine_loop():
     )
 
     log(
-        f"📡 SOURCE: {SOURCE
+f"📡 SOURCE: {SOURCE_NAME}"
