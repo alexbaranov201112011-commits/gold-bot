@@ -1,6 +1,5 @@
-flask
-requests
-pandas
-numpy
-yfinance
-gunicorn
+Flask>=3.0,<4
+requests>=2.31,<3
+pandas>=2.2,<3
+numpy>=1.26,<3
+gunicorn>=22.0,<24
