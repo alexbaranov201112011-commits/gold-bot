@@ -1539,102 +1539,132 @@ def build_signal_message(
     analysis,
     signal_type=None
 ):
-
     side = analysis["side"]
     score = analysis["score"]
-
     if signal_type is None:
         signal_type = (
             analysis["signal_type"]
         )
-
-    if side == "BUY":
-
-        sl = (
-            price -
-            SL_DISTANCE
-        )
-
-        tp1 = (
-            price +
-            TP1_DISTANCE
-        )
-
-        tp2 = (
-            price +
-            TP2_DISTANCE
-        )
-
-        emoji = "🟢"
-
-    elif side == "SELL":
-
-        sl = (
-            price +
-            SL_DISTANCE
-        )
-
-        tp1 = (
-            price -
-            TP1_DISTANCE
-        )
-
-        tp2 = (
-            price -
-            TP2_DISTANCE
-        )
-
-        emoji = "🔴"
-
-    else:
-
+    # ========================================================
+    # WAIT
+    # НЕТ ВХОДА → НЕТ ENTRY / SL / TP / LOT / RR
+    # ========================================================
+    if (
+        signal_type == "WAIT"
+        or
+        side == "WAIT"
+    ):
         return (
             f"🥇 {APP_NAME}\n\n"
             f"⚪ SIGNAL: WAIT\n\n"
             f"💰 XAUUSD: "
             f"{price:.2f}\n\n"
-
             f"📊 H4: "
             f"{analysis['h4']['side']} "
             f"({analysis['h4']['score']}/100)\n"
-
             f"📊 H1: "
             f"{analysis['h1']['side']} "
             f"({analysis['h1']['score']}/100)\n"
-
             f"📊 M15: "
             f"{analysis['m15']['side']} "
             f"({analysis['m15']['score']}/100)\n"
-
             f"📊 M5: "
             f"{analysis['m5']['side']} "
             f"({analysis['m5']['score']}/100)\n\n"
-
             f"💧 Liquidity: "
             f"{analysis['liquidity']}\n"
-
             f"🔨 BOS: "
             f"{analysis['bos']}\n"
-
             f"🧩 FVG: "
             f"{analysis['fvg']}\n"
-
             f"🚀 Displacement: "
             f"{analysis['displacement']}\n"
-
             f"⚡ Momentum: "
             f"{analysis['momentum']}\n"
-
             f"📦 Zone: "
             f"{analysis['premium_discount']}\n\n"
-
             f"📈 Score: "
             f"{score}/100\n\n"
-
+            f"⏳ Ожидание подтверждения входа\n\n"
             f"🤖 AUTO TRADING: OFF\n"
             f"✋ Manual signals only"
         )
-
+    # ========================================================
+    # BUY
+    # ========================================================
+    if side == "BUY":
+        sl = (
+            price -
+            SL_DISTANCE
+        )
+        tp1 = (
+            price +
+            TP1_DISTANCE
+        )
+        tp2 = (
+            price +
+            TP2_DISTANCE
+        )
+        emoji = "🟢"
+    # ========================================================
+    # SELL
+    # ========================================================
+    elif side == "SELL":
+        sl = (
+            price +
+            SL_DISTANCE
+        )
+        tp1 = (
+            price -
+            TP1_DISTANCE
+        )
+        tp2 = (
+            price -
+            TP2_DISTANCE
+        )
+        emoji = "🔴"
+    # ========================================================
+    # SAFETY FALLBACK
+    # ========================================================
+    else:
+        return (
+            f"🥇 {APP_NAME}\n\n"
+            f"⚪ SIGNAL: WAIT\n\n"
+            f"💰 XAUUSD: "
+            f"{price:.2f}\n\n"
+            f"📊 H4: "
+            f"{analysis['h4']['side']} "
+            f"({analysis['h4']['score']}/100)\n"
+            f"📊 H1: "
+            f"{analysis['h1']['side']} "
+            f"({analysis['h1']['score']}/100)\n"
+            f"📊 M15: "
+            f"{analysis['m15']['side']} "
+            f"({analysis['m15']['score']}/100)\n"
+            f"📊 M5: "
+            f"{analysis['m5']['side']} "
+            f"({analysis['m5']['score']}/100)\n\n"
+            f"💧 Liquidity: "
+            f"{analysis['liquidity']}\n"
+            f"🔨 BOS: "
+            f"{analysis['bos']}\n"
+            f"🧩 FVG: "
+            f"{analysis['fvg']}\n"
+            f"🚀 Displacement: "
+            f"{analysis['displacement']}\n"
+            f"⚡ Momentum: "
+            f"{analysis['momentum']}\n"
+            f"📦 Zone: "
+            f"{analysis['premium_discount']}\n\n"
+            f"📈 Score: "
+            f"{score}/100\n\n"
+            f"⏳ Ожидание подтверждения входа\n\n"
+            f"🤖 AUTO TRADING: OFF\n"
+            f"✋ Manual signals only"
+        )
+    # ========================================================
+    # REAL SIGNAL: EARLY / FULL
+    # ========================================================
     confidence = min(
         99,
         max(
@@ -1642,73 +1672,52 @@ def build_signal_message(
             score
         )
     )
-
     lot = calculate_lot()
-
     return (
         f"🥇 {APP_NAME}\n\n"
-
         f"{emoji} SIGNAL: "
         f"{signal_type} {side}\n\n"
-
         f"💰 XAUUSD: "
         f"{price:.2f}\n\n"
-
         f"📊 H4: "
         f"{analysis['h4']['side']} "
         f"({analysis['h4']['score']}/100)\n"
-
         f"📊 H1: "
         f"{analysis['h1']['side']} "
         f"({analysis['h1']['score']}/100)\n"
-
         f"📊 M15: "
         f"{analysis['m15']['side']} "
         f"({analysis['m15']['score']}/100)\n"
-
         f"📊 M5: "
         f"{analysis['m5']['side']} "
         f"({analysis['m5']['score']}/100)\n\n"
-
         f"💧 Liquidity: "
         f"{analysis['liquidity']}\n"
-
         f"🔨 BOS: "
         f"{analysis['bos']}\n"
-
         f"🧩 FVG: "
         f"{analysis['fvg']}\n"
-
         f"🚀 Displacement: "
         f"{analysis['displacement']}\n"
-
         f"⚡ Momentum: "
         f"{analysis['momentum']}\n"
-
         f"📦 Zone: "
         f"{analysis['premium_discount']}\n\n"
-
         f"🎯 ENTRY: "
         f"{price:.2f}\n"
-
         f"🛑 SL: "
         f"{sl:.2f}\n"
-
         f"🎯 TP1: "
         f"{tp1:.2f}\n"
-
         f"🎯 TP2: "
         f"{tp2:.2f}\n\n"
-
         f"📐 RR: 1:3\n"
         f"📦 Lot: {lot:.2f}\n"
         f"🔥 Confidence: "
         f"{confidence}%\n\n"
-
         f"🤖 AUTO TRADING: OFF\n"
         f"✋ Manual signals only"
     )
-
 
 # ============================================================
 # VIRTUAL TRADE / STATS
