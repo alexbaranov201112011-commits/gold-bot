@@ -2636,9 +2636,12 @@ def command_status():
 
         f"📊 Candles: "
         f"{counts}\n"
+f"🕐 Last successful cycle: "
+f"{last_cycle or 'нет'}\n"
 
-        f"🕐 Last cycle: "
-        f"{last_cycle or 'нет'}\n"
+f"🔄 Last cycle attempt: "
+f"{last_cycle_attempt or 'нет'}\n"
+    
 
         f"⚠️ Error: "
         f"{last_error or 'нет'}\n"
