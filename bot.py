@@ -2329,10 +2329,12 @@ def market_cycle(
 ):
 
     global last_cycle
+    global last_cycle_attempt
     global last_error
     global last_data_counts
     global last_signal_time
 
+    last_cycle_attempt = utc_string()
     try:
 
         print(
