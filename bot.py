@@ -1553,7 +1553,7 @@ def analyze_market(frames):
 
         "htf_agreement": bullish_htf or bearish_htf
     }
-
+        "trendline_pressure": trendline_pressure,
 
 # ============================================================
 # DISPLAY LOT
