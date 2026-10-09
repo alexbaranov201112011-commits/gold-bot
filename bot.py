@@ -2453,101 +2453,11 @@ def market_cycle(
         # SIGNAL
         # ----------------------------------------------------
 
-        is_real_signal = (
-            analysis["side"]
-            in (
-                "BUY",
-                "SELL"
-            )
-            and
-            analysis["score"]
-            >= EARLY_SCORE
-        )
-
-        if not is_real_signal:
-            return analysis
-
-        now = time.time()
-
-        cooldown_seconds = (
-            SIGNAL_COOLDOWN_MIN *
-            60
-        )
-
-        if (
-            not force
-            and
-            now - last_signal_time
-            < cooldown_seconds
-        ):
-
-            print(
-                "GOLD SMART: "
-                "signal cooldown"
-            )
-
-            return analysis
-
-        if active_trade:
-
-            print(
-                "GOLD SMART: "
-                "active virtual trade"
-            )
-
-            return analysis
-
-        if send_signal:
-
-            message = (
-                build_signal_message(
-                    price,
-                    analysis
-                )
-            )
-
-            sent = send_telegram(
-                message
-            )
-
-            if sent:
-
-                last_signal_time = now
-
-                opened = (
-                    open_virtual_trade(
-                        analysis["side"],
-                        price,
-                        analysis
-                    )
-                )
-
-                if opened:
-
-                    print(
-                        "GOLD SMART: "
-                        "virtual trade opened"
-                    )
-
-        return analysis
-
-    except Exception as e:
-
-        last_error = (
-            f"{type(e).__name__}: {e}"
-        )
-
-        print(
-            "GOLD SMART: "
-            "cycle ERROR:",
-            last_error
-        )
-
-        traceback.print_exc()
-
-        return None
-
-
+     is_real_signal = (
+    analysis["side"] in ("BUY", "SELL")
+    and analysis["signal_type"] == "FULL"
+    and analysis["score"] >= MIN_SCORE
+)
 # ============================================================
 # TELEGRAM COMMANDS
 # ============================================================
