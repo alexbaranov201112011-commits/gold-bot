@@ -2658,32 +2658,73 @@ f"{last_cycle_attempt or 'нет'}\n"
     )
 
 
-def command_signal(
-    chat_id
-):
+
+def command_signal(chat_id):
+
+    global last_signal_time
 
     analysis = market_cycle(
         send_signal=False,
         force=True
     )
 
-    if (
-        not analysis
-        or
-        last_price is None
-    ):
-
+    if not analysis or last_price is None:
         return (
             f"⚠️ {APP_NAME}\n\n"
-            f"Не удалось получить "
-            f"анализ XAU/USD.\n\n"
+            f"Не удалось получить анализ XAU/USD.\n\n"
             f"Проверь Render logs."
         )
 
-    return build_signal_message(
+    message = build_signal_message(
         last_price,
         analysis
     )
+
+    is_full_signal = (
+        analysis.get("side") in ("BUY", "SELL")
+        and analysis.get("signal_type") == "FULL"
+        and int(analysis.get("score", 0)) >= MIN_SCORE
+    )
+
+    if not is_full_signal:
+        return message
+
+    cooldown_seconds = SIGNAL_COOLDOWN_MIN * 60
+
+    if active_trade:
+        message += (
+            "\n\n📦 VIRTUAL TRADE: already active"
+        )
+        return message
+
+    elapsed = time.time() - last_signal_time
+
+    if elapsed < cooldown_seconds:
+        remaining = int(cooldown_seconds - elapsed)
+        message += (
+            "\n\n⏳ VIRTUAL TRADE: cooldown active "
+            f"({remaining // 60}m {remaining % 60}s remaining)"
+        )
+        return message
+
+    opened = open_virtual_trade(
+        analysis["side"],
+        last_price,
+        analysis
+    )
+
+    if opened:
+        last_signal_time = time.time()
+        message += (
+            "\n\n📦 VIRTUAL TRADE: opened for tracking"
+        )
+    else:
+        message += (
+            "\n\n📦 VIRTUAL TRADE: not opened"
+        )
+
+    return message
+
 
 
 def command_test():
