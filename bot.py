@@ -1346,7 +1346,6 @@ def premium_discount(df):
 # ============================================================
 
 def analyze_market(frames):
-
     h4 = frames["H4"]
     h1 = frames["H1"]
     m15 = frames["M15"]
@@ -1367,14 +1366,11 @@ def analyze_market(frames):
 
     bullish_htf = (
         h4_trend["side"] == "BULLISH"
-        and
-        h1_trend["side"] == "BULLISH"
+        and h1_trend["side"] == "BULLISH"
     )
-
     bearish_htf = (
         h4_trend["side"] == "BEARISH"
-        and
-        h1_trend["side"] == "BEARISH"
+        and h1_trend["side"] == "BEARISH"
     )
 
     buy_score = 0
@@ -1382,105 +1378,119 @@ def analyze_market(frames):
 
     if h4_trend["side"] == "BULLISH":
         buy_score += 20
-
     elif h4_trend["side"] == "BEARISH":
         sell_score += 20
 
     if h1_trend["side"] == "BULLISH":
         buy_score += 20
-
     elif h1_trend["side"] == "BEARISH":
         sell_score += 20
 
     if m15_trend["side"] == "BULLISH":
         buy_score += 12
-
     elif m15_trend["side"] == "BEARISH":
         sell_score += 12
 
     if m5_trend["side"] == "BULLISH":
         buy_score += 10
-
     elif m5_trend["side"] == "BEARISH":
         sell_score += 10
 
     if bos == "BULLISH":
         buy_score += 12
-
     elif bos == "BEARISH":
         sell_score += 12
 
     if sweep == "BULLISH SWEEP":
         buy_score += 10
-
     elif sweep == "BEARISH SWEEP":
         sell_score += 10
 
     if fvg == "BULLISH":
         buy_score += 6
-
     elif fvg == "BEARISH":
         sell_score += 6
 
     if displacement == "BULLISH":
         buy_score += 5
-
     elif displacement == "BEARISH":
         sell_score += 5
 
     if momentum == "BULLISH":
         buy_score += 5
-
     elif momentum == "BEARISH":
         sell_score += 5
 
     if pd_zone == "DISCOUNT":
         buy_score += 5
-
     elif pd_zone == "PREMIUM":
         sell_score += 5
 
-    buy_score = min(
-        100,
-        buy_score
-    )
-
-    sell_score = min(
-        100,
-        sell_score
-    )
+    buy_score = min(100, buy_score)
+    sell_score = min(100, sell_score)
 
     if buy_score > sell_score:
-
         side = "BUY"
         score = buy_score
-
     elif sell_score > buy_score:
-
         side = "SELL"
         score = sell_score
-
     else:
-
         side = "WAIT"
-        score = max(
-            buy_score,
-            sell_score
+        score = max(buy_score, sell_score)
+
+    # V6.1: confirmation gate.
+    # A high score alone is NOT permission to enter.
+    setup_reasons = []
+
+    if side in ("BUY", "SELL"):
+        expected = "BULLISH" if side == "BUY" else "BEARISH"
+        opposite = "BEARISH" if side == "BUY" else "BULLISH"
+        expected_sweep = (
+            "BULLISH SWEEP" if side == "BUY"
+            else "BEARISH SWEEP"
         )
 
-    if score >= MIN_SCORE:
-        signal_type = "FULL"
+        if not (h4_trend["side"] == expected
+                and h1_trend["side"] == expected):
+            setup_reasons.append("H4/H1 not aligned")
 
+        if m15_trend["side"] != expected:
+            setup_reasons.append("M15 not confirmed")
+
+        if sweep != expected_sweep:
+            setup_reasons.append("No matching liquidity sweep")
+
+        if bos != expected:
+            setup_reasons.append("No matching BOS")
+
+        if momentum == opposite:
+            setup_reasons.append("Momentum contradicts direction")
+
+        if fvg == opposite:
+            setup_reasons.append("FVG contradicts direction")
+
+        if displacement == opposite:
+            setup_reasons.append("Displacement contradicts direction")
+
+        if setup_reasons:
+            side = "WAIT"
+
+    if side == "WAIT":
+        signal_type = "WAIT"
+    elif score >= MIN_SCORE:
+        signal_type = "FULL"
     elif score >= EARLY_SCORE:
         signal_type = "EARLY"
-
     else:
+        side = "WAIT"
         signal_type = "WAIT"
 
     return {
         "side": side,
         "score": int(score),
         "signal_type": signal_type,
+        "setup_reasons": setup_reasons,
 
         "h4": h4_trend,
         "h1": h1_trend,
@@ -1495,11 +1505,7 @@ def analyze_market(frames):
         "compression": compression,
         "premium_discount": pd_zone,
 
-        "htf_agreement": (
-            bullish_htf
-            or
-            bearish_htf
-        )
+        "htf_agreement": bullish_htf or bearish_htf
     }
 
 
