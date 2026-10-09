@@ -95,11 +95,11 @@ ENGINE_LOCK = threading.Lock()
 STATE_LOCK = threading.RLock()
 
 last_cycle = None
+last_cycle_attempt = None
 last_error = None
 last_price = None
 last_data_counts = {}
 last_signal_time = 0.0
-
 active_trade = None
 
 
