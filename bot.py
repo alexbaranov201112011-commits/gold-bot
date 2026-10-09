@@ -1463,7 +1463,10 @@ def analyze_market(frames):
         buy_score += 5
     elif momentum == "BEARISH":
         sell_score += 5
-
+    if trendline_pressure == "BULLISH PRESSURE":
+        buy_score += 4
+    elif trendline_pressure == "BEARISH PRESSURE":
+        sell_score += 4
     if pd_zone == "DISCOUNT":
         buy_score += 5
     elif pd_zone == "PREMIUM":
