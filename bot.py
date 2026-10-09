@@ -2062,15 +2062,17 @@ def manage_virtual_trade(
             )
 
             # BREAK EVEN
-            if (
-                not be
-                and
-                favorable_move >= BE_TRIGGER
-            ):
+        result = (
+    "BREAKEVEN"
+    if active_trade.get("be")
+    else "LOSS"
+)
 
-                active_trade["sl"] = entry
-                active_trade["be"] = True
-
+points = (
+    0.0
+    if result == "BREAKEVEN"
+    else price - entry
+)
                 save_trade()
 
                 send_telegram(
@@ -2190,14 +2192,19 @@ def manage_virtual_trade(
                 entry -
                 price
             )
+result = (
+    "BREAKEVEN"
+    if active_trade.get("be")
+    else "LOSS"
+)
 
-            # BREAK EVEN
-            if (
-                not be
-                and
-                favorable_move >= BE_TRIGGER
-            ):
-
+points = (
+    0.0
+    if result == "BREAKEVEN"
+    else entry - price
+)
+          
+          
                 active_trade["sl"] = entry
                 active_trade["be"] = True
 
