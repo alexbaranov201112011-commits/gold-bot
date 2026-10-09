@@ -1158,40 +1158,34 @@ def detect_bos(df):
     return "NONE"
 
 
-def detect_liquidity_sweep(df):
 
-    if (
-        df is None
-        or len(df) < 6
-    ):
+def detect_liquidity_sweep(df):
+    """Detect a recent liquidity sweep on closed candles."""
+    if df is None or len(df) < 6:
         return "NONE"
 
-    previous = (
-        df.iloc[:-1]
-        .tail(5)
-    )
+    start = max(5, len(df) - 3)
 
-    current = df.iloc[-1]
+    for idx in range(len(df) - 1, start - 1, -1):
+        previous = df.iloc[idx - 5:idx]
+        current = df.iloc[idx]
 
-    prior_high = (
-        previous["high"].max()
-    )
+        if previous.empty:
+            continue
 
-    prior_low = (
-        previous["low"].min()
-    )
+        prior_high = float(previous["high"].max())
+        prior_low = float(previous["low"].min())
+        current_low = float(current["low"])
+        current_high = float(current["high"])
+        current_close = float(current["close"])
 
-    if (
-        current["low"] < prior_low
-        and current["close"] > prior_low
-    ):
-        return "BULLISH SWEEP"
+        # Sweep below lows, then close back above the prior low.
+        if current_low < prior_low and current_close > prior_low:
+            return "BULLISH SWEEP"
 
-    if (
-        current["high"] > prior_high
-        and current["close"] < prior_high
-    ):
-        return "BEARISH SWEEP"
+        # Sweep above highs, then close back below the prior high.
+        if current_high > prior_high and current_close < prior_high:
+            return "BEARISH SWEEP"
 
     return "NONE"
 
