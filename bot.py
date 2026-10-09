@@ -2454,11 +2454,11 @@ def market_cycle(
         # SIGNAL
         # ----------------------------------------------------
 
-     is_real_signal = (
-    analysis["side"] in ("BUY", "SELL")
-    and analysis["signal_type"] == "FULL"
-    and analysis["score"] >= MIN_SCORE
-)
+             is_real_signal = (
+            analysis["side"] in ("BUY", "SELL")
+            and analysis["signal_type"] == "FULL"
+            and analysis["score"] >= MIN_SCORE
+        )
 # ============================================================
 # TELEGRAM COMMANDS
 # ============================================================
