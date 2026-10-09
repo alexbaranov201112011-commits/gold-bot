@@ -2446,8 +2446,7 @@ def market_cycle(
         # MANAGE VIRTUAL TRADE
         # ----------------------------------------------------
 
-        manage_virtual_trade(
-            
+             manage_virtual_trade(price)
     
         # ----------------------------------------------------
         # SIGNAL
