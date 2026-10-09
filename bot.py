@@ -1276,32 +1276,76 @@ def detect_momentum(df):
     return "NONE"
 
 
+
 def detect_compression(df):
+    """Detect volatility contraction using closed candles."""
+    if df is None or len(df) < 20:
+        return "NONE"
+
+    atr_values = atr(df, 14).dropna()
+
+    if len(atr_values) < 10:
+        return "NONE"
+
+    recent_atr = float(atr_values.iloc[-3:].mean())
+    prior_atr = float(atr_values.iloc[-10:-5].mean())
+
+    if prior_atr <= 0:
+        return "NONE"
+
+    recent_range = float(
+        (df["high"].iloc[-5:] - df["low"].iloc[-5:]).mean()
+    )
+    prior_range = float(
+        (df["high"].iloc[-10:-5] - df["low"].iloc[-10:-5]).mean()
+    )
 
     if (
-        df is None
-        or len(df) < 20
+        recent_atr < prior_atr * 0.90
+        and prior_range > 0
+        and recent_range < prior_range * 0.90
     ):
-        return "NONE"
-
-    atr_values = atr(
-        df,
-        14
-    )
-
-    recent = float(
-        atr_values.iloc[-1]
-    )
-
-    old = float(
-        atr_values.iloc[-10]
-    )
-
-    if old <= 0:
-        return "NONE"
-
-    if recent < old * 0.75:
         return "COMPRESSION"
+
+    return "NONE"
+
+
+def detect_trendline_pressure(df):
+    """Detect approximate pressure toward a local range boundary."""
+    if df is None or len(df) < 20:
+        return "NONE"
+
+    window = df.tail(12).reset_index(drop=True)
+    x = np.arange(len(window), dtype=float)
+
+    try:
+        high_slope = float(
+            np.polyfit(x, window["high"].astype(float), 1)[0]
+        )
+        low_slope = float(
+            np.polyfit(x, window["low"].astype(float), 1)[0]
+        )
+    except (ValueError, TypeError, np.linalg.LinAlgError):
+        return "NONE"
+
+    high = float(window["high"].max())
+    low = float(window["low"].min())
+    close = float(window["close"].iloc[-1])
+    width = high - low
+
+    if width <= 0:
+        return "NONE"
+
+    near_high = (high - close) <= width * 0.22
+    near_low = (close - low) <= width * 0.22
+
+    # Rising lows pressing toward the upper boundary.
+    if low_slope > 0 and near_high:
+        return "BULLISH PRESSURE"
+
+    # Falling highs pressing toward the lower boundary.
+    if high_slope < 0 and near_low:
+        return "BEARISH PRESSURE"
 
     return "NONE"
 
