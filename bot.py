@@ -2449,16 +2449,62 @@ def market_cycle(
         manage_virtual_trade(
             price
         )
-
-        # ----------------------------------------------------
-        # SIGNAL
-        # ----------------------------------------------------
-
-        is_real_signal = (
-            analysis["side"] in ("BUY", "SELL")
-            and analysis["signal_type"] == "FULL"
-            and analysis["score"] >= MIN_SCORE
+    # ----------------------------------------------------
+    # SIGNAL
+    # ----------------------------------------------------
+    is_real_signal = (
+        analysis["side"] in ("BUY", "SELL")
+        and analysis["signal_type"] == "FULL"
+        and analysis["score"] >= MIN_SCORE
+    )
+    # Автоматическая отправка только FULL-сигналов.
+    # Команда /signal не отправляет повторное уведомление
+    # и не открывает виртуальную сделку.
+    if send_signal and is_real_signal:
+        cooldown_seconds = (
+            SIGNAL_COOLDOWN_MIN * 60
         )
+        cooldown_passed = (
+            time.time() - last_signal_time
+            >= cooldown_seconds
+        )
+        if cooldown_passed and not active_trade:
+            trade_opened = open_virtual_trade(
+                analysis["side"],
+                price,
+                analysis
+            )
+            if trade_opened:
+                message = build_signal_message(
+                    price,
+                    analysis
+                )
+                send_telegram(message)
+                last_signal_time = time.time()
+                print(
+                    "GOLD SMART: "
+                    "FULL signal sent:",
+                    analysis["side"],
+                    analysis["score"]
+                )
+    return analysis
+except Exception as e:
+    last_error = (
+        f"{type(e).__name__}: {e}"
+    )
+    print(
+        "GOLD SMART market_cycle error:",
+        repr(e)
+    )
+    traceback.print_exc()
+    return None
+
+============================================================
+
+TELEGRAM COMMANDS
+
+============================================================
+  
 # ============================================================
 # TELEGRAM COMMANDS
 # ============================================================
