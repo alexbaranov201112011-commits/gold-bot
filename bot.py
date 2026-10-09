@@ -2446,8 +2446,9 @@ def market_cycle(
         # MANAGE VIRTUAL TRADE
         # ----------------------------------------------------
 
-             manage_virtual_trade(price)
-    
+  
+        manage_virtual_trade(price)
+
         # ----------------------------------------------------
         # SIGNAL
         # ----------------------------------------------------
@@ -2484,7 +2485,6 @@ def market_cycle(
                     )
 
                     send_telegram(message)
-
                     last_signal_time = time.time()
 
                     print(
@@ -2494,6 +2494,7 @@ def market_cycle(
                     )
 
         return analysis
+
 
 
         
