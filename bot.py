@@ -1403,9 +1403,8 @@ def analyze_market(frames):
     bos = detect_bos(m5)
     sweep = detect_liquidity_sweep(m5)
     fvg = detect_fvg(m5)
-    displacement = detect_displacement(m5)
-    momentum = detect_momentum(m5)
-    compression = detect_compression(m5)
+        compression = detect_compression(m5)
+    trendline_pressure = detect_trendline_pressure(m5)
     pd_zone = premium_discount(m5)
 
     bullish_htf = (
