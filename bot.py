@@ -1550,10 +1550,11 @@ def analyze_market(frames):
         "momentum": momentum,
         "compression": compression,
         "premium_discount": pd_zone,
-
+        "compression": compression,
+        "trendline_pressure": trendline_pressure,
+        "premium_discount": pd_zone,
         "htf_agreement": bullish_htf or bearish_htf
     }
-        "trendline_pressure": trendline_pressure,
 
 # ============================================================
 # DISPLAY LOT
