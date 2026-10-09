@@ -2449,18 +2449,24 @@ def market_cycle(
         manage_virtual_trade(
             price
         )
-    # ----------------------------------------------------
-    # SIGNAL
-    # ----------------------------------------------------
- is_real_signal = (
+        # ----------------------------------------------------
+        # SIGNAL
+        # ----------------------------------------------------
+    
 
-            analysis["side"] in ("BUY", "SELL")
+        
 
-            and analysis["signal_type"] == "FULL"
+    is_real_signal = (
+        analysis["side"] in ("BUY", "SELL")
+        and analysis["signal_type"] == "FULL"
+        and analysis["score"] >= MIN_SCORE
+    )
 
-            and analysis["score"] >= MIN_SCORE
-
-        )
+    # Автоматическая отправка только FULL-сигналов.is_real_signal = (
+        analysis["side"] in ("BUY", "SELL")
+        and analysis["signal_type"] == "FULL"
+        and analysis["score"] >= MIN_SCORE
+    )
 
         # Автоматическая отправка только FULL-сигналов.
 
